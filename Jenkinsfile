@@ -31,7 +31,13 @@ pipeline {
       if exist backend/AzureGuard/AzureGuard.sln dotnet test backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore --no-build
       if exist frontend/package.json echo Frontend tests will run when the test suite is added
     ''' } }
-    stage('Security scan') { steps { echo 'Scanner installation and report publishing will be enabled after the Jenkins tools are configured.' } }
+    stage('Security scan') {
+      steps {
+        bat 'gitleaks version'
+        bat 'gitleaks detect --source=. --report-format=json --report-path=gitleaks-report.json --exit-code=0'
+        archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
+      }
+    }
   }
   post { always { echo "AzureGuard release ${params.RELEASE_VERSION} completed with ${currentBuild.currentResult}" } }
 }
