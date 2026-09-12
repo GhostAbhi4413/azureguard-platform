@@ -1,0 +1,4 @@
+0000000000000000000000000000000000000000 071ca038e35f98f92301930b9da4badd92b176e1 GhostAbhi4413 <abhisheknikam0508@gmail.com> 1789241698 +0530	commit (initial): Initial commit
+071ca038e35f98f92301930b9da4badd92b176e1 0000000000000000000000000000000000000000 GhostAbhi4413 <abhisheknikam0508@gmail.com> 1789241706 +0530	Branch: renamed refs/heads/master to refs/heads/main
+0000000000000000000000000000000000000000 071ca038e35f98f92301930b9da4badd92b176e1 GhostAbhi4413 <abhisheknikam0508@gmail.com> 1789241706 +0530	Branch: renamed refs/heads/master to refs/heads/main
+071ca038e35f98f92301930b9da4badd92b176e1 eebd11b89049d83d14afe0bf900bda1c3f3ccc72 GhostAbhi4413 <abhisheknikam0508@gmail.com> 1789241818 +0530	commit: Remove frontend dependencies from source control

@@ -1,0 +1,14 @@
+using System.Net.Http.Headers;
+using System.Text;
+using CoreModels;
+using DataAccessLayer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+namespace ApplicationLayer;
+public sealed class JenkinsOptions { public string BaseUrl { get; set; } = ""; public string JobName { get; set; } = ""; public string UserName { get; set; } = ""; public string ApiToken { get; set; } = ""; public string WebhookSecret { get; set; } = ""; }
+public sealed class JenkinsService(HttpClient http, AppDbContext db, IOptions<JenkinsOptions> options)
+{
+    private readonly JenkinsOptions settings = options.Value;
+    public async Task<PipelineRun> TriggerAsync(Project project, Release release, CancellationToken cancellationToken) { if (string.IsNullOrWhiteSpace(settings.BaseUrl) || string.IsNullOrWhiteSpace(settings.JobName) || string.IsNullOrWhiteSpace(settings.UserName) || string.IsNullOrWhiteSpace(settings.ApiToken)) throw new InvalidOperationException("Jenkins is not configured. Set Jenkins:BaseUrl, JobName, UserName and ApiToken."); using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.BaseUrl.TrimEnd('/')}/job/{Uri.EscapeDataString(settings.JobName)}/buildWithParameters?PROJECT_ID={project.Id}&RELEASE_ID={release.Id}&REPOSITORY_URL={Uri.EscapeDataString(project.RepositoryUrl)}&BRANCH_NAME={Uri.EscapeDataString(release.BranchName)}&RELEASE_VERSION={Uri.EscapeDataString(release.ReleaseVersion)}"); request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.UserName}:{settings.ApiToken}"))); using var response = await http.SendAsync(request, cancellationToken); response.EnsureSuccessStatusCode(); var run = new PipelineRun { ReleaseId = release.Id, Status = "QUEUED", PipelineUrl = $"{settings.BaseUrl.TrimEnd('/')}/job/{Uri.EscapeDataString(settings.JobName)}" }; db.PipelineRuns.Add(run); release.Status = "PIPELINE_RUNNING"; release.StartedAt = DateTime.UtcNow; await db.SaveChangesAsync(cancellationToken); return run; }
+    public async Task<bool> UpdateFromWebhookAsync(long releaseId, JenkinsWebhookRequest payload) { var run = await db.PipelineRuns.Where(x => x.ReleaseId == releaseId).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(); var release = await db.Releases.FindAsync(releaseId); if (run is null || release is null) return false; run.ExternalRunId = payload.ExternalRunId; run.PipelineUrl = payload.PipelineUrl ?? run.PipelineUrl; run.Status = payload.Status.ToUpperInvariant(); run.ErrorMessage = payload.ErrorMessage; run.CompletedAt = run.Status is "SUCCESS" or "FAILED" or "CANCELLED" ? DateTime.UtcNow : null; release.Status = run.Status == "SUCCESS" ? "SCANNING" : run.Status == "FAILED" ? "FAILED" : release.Status; await db.SaveChangesAsync(); return true; }
+}

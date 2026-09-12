@@ -1,0 +1,27 @@
+# .NET build output
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Local secrets and environment files
+**/appsettings.Local.json
+**/appsettings.Production.json
+*.env
+*.env.*
+!.env.example
+
+# IDE and local tooling
+.vs/
+.idea/
+.vscode/
+*.log
+
+# Azure/local developer credentials
+.azure/
+secrets/
