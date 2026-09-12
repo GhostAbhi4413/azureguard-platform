@@ -29,6 +29,9 @@ IF OBJECT_ID('dbo.PolicyRules') IS NOT NULL AND COL_LENGTH('dbo.PolicyRules', 'A
   ALTER TABLE dbo.PolicyRules ADD Action NVARCHAR(30) NULL;
 IF OBJECT_ID('dbo.PolicyDecisions') IS NOT NULL AND COL_LENGTH('dbo.PolicyDecisions', 'RiskScore') IS NULL
   ALTER TABLE dbo.PolicyDecisions ADD RiskScore DECIMAL(10,2) NULL;
+IF OBJECT_ID('dbo.AuditLogs') IS NOT NULL AND COL_LENGTH('dbo.AuditLogs', 'ActionName') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID('dbo.AuditLogs') AND parent_column_id = COLUMNPROPERTY(OBJECT_ID('dbo.AuditLogs'), 'ActionName', 'ColumnId'))
+  ALTER TABLE dbo.AuditLogs ADD CONSTRAINT DF_AuditLogs_ActionName DEFAULT ('SYSTEM') FOR ActionName;
 /* Seed a default policy for every existing project without changing user policy data. */
 INSERT dbo.Policies(ProjectId, Name) SELECT p.Id, 'Default' FROM dbo.Projects p WHERE NOT EXISTS (SELECT 1 FROM dbo.Policies x WHERE x.ProjectId = p.Id AND x.IsActive = 1);
 INSERT dbo.PolicyRules(PolicyId, RuleCode, Description, Threshold, Action)
