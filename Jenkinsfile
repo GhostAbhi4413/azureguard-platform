@@ -34,7 +34,7 @@ pipeline {
     stage('Security scan') {
       steps {
         bat 'gitleaks version'
-        bat 'gitleaks detect --no-git --config=.gitleaks-test.toml --source=. --report-format=json --report-path=gitleaks-report.json --exit-code=0'
+        bat 'gitleaks detect --no-git --source=. --report-format=json --report-path=gitleaks-report.json --exit-code=0'
         archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
         withCredentials([string(credentialsId: 'azureguard-webhook-secret', variable: 'AZUREGUARD_WEBHOOK_SECRET')]) {
           bat '''

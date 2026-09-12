@@ -1,9 +1,0 @@
-title = "AzureGuard deterministic test rules"
-
-[[rules]]
-id = "azureguard-test-secret"
-description = "AzureGuard test secret for release-gate verification"
-regex = '''AZUREGUARD_TEST_SECRET=[A-Za-z0-9_-]+'''
-secretGroup = 0
-entropy = 0
-keywords = ["AZUREGUARD_TEST_SECRET"]
