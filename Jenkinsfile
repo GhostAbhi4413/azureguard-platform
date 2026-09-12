@@ -38,6 +38,14 @@ pipeline {
         archiveArtifacts artifacts: 'gitleaks-report.json', allowEmptyArchive: true
         withCredentials([string(credentialsId: 'azureguard-webhook-secret', variable: 'AZUREGUARD_WEBHOOK_SECRET')]) {
           bat '''
+            if not defined PROJECT_ID (
+              echo No AzureGuard release context supplied; skipping report upload for SCM validation build.
+              exit /b 0
+            )
+            if not defined RELEASE_ID (
+              echo No AzureGuard release context supplied; skipping report upload for SCM validation build.
+              exit /b 0
+            )
             if not defined AZUREGUARD_API_URL set AZUREGUARD_API_URL=http://localhost:5006/api
             curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GITLEAKS&toolName=GITLEAKS&status=PASSED" -H "Content-Type: application/json" -H "X-AzureGuard-Webhook-Secret: %AZUREGUARD_WEBHOOK_SECRET%" --data-binary "@gitleaks-report.json"
           '''
