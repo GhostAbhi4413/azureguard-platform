@@ -17,6 +17,18 @@ BEGIN
   CREATE TABLE dbo.AuditLogs (Id BIGINT IDENTITY PRIMARY KEY, UserId BIGINT NULL, ProjectId BIGINT NULL, ReleaseId BIGINT NULL, Action NVARCHAR(100) NOT NULL, DetailsJson NVARCHAR(MAX) NULL, CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME());
   CREATE INDEX IX_AuditLogs_CreatedAt ON dbo.AuditLogs(CreatedAt);
 END;
+IF OBJECT_ID('dbo.AuditLogs') IS NOT NULL AND COL_LENGTH('dbo.AuditLogs', 'Action') IS NULL
+  ALTER TABLE dbo.AuditLogs ADD Action NVARCHAR(100) NULL;
+IF OBJECT_ID('dbo.AuditLogs') IS NOT NULL AND COL_LENGTH('dbo.AuditLogs', 'DetailsJson') IS NULL
+  ALTER TABLE dbo.AuditLogs ADD DetailsJson NVARCHAR(MAX) NULL;
+IF OBJECT_ID('dbo.PolicyRules') IS NOT NULL AND COL_LENGTH('dbo.PolicyRules', 'Description') IS NULL
+  ALTER TABLE dbo.PolicyRules ADD Description NVARCHAR(500) NULL;
+IF OBJECT_ID('dbo.PolicyRules') IS NOT NULL AND COL_LENGTH('dbo.PolicyRules', 'Threshold') IS NULL
+  ALTER TABLE dbo.PolicyRules ADD Threshold DECIMAL(10,2) NULL;
+IF OBJECT_ID('dbo.PolicyRules') IS NOT NULL AND COL_LENGTH('dbo.PolicyRules', 'Action') IS NULL
+  ALTER TABLE dbo.PolicyRules ADD Action NVARCHAR(30) NULL;
+IF OBJECT_ID('dbo.PolicyDecisions') IS NOT NULL AND COL_LENGTH('dbo.PolicyDecisions', 'RiskScore') IS NULL
+  ALTER TABLE dbo.PolicyDecisions ADD RiskScore DECIMAL(10,2) NULL;
 /* Seed a default policy for every existing project without changing user policy data. */
 INSERT dbo.Policies(ProjectId, Name) SELECT p.Id, 'Default' FROM dbo.Projects p WHERE NOT EXISTS (SELECT 1 FROM dbo.Policies x WHERE x.ProjectId = p.Id AND x.IsActive = 1);
 INSERT dbo.PolicyRules(PolicyId, RuleCode, Description, Threshold, Action)
