@@ -50,9 +50,9 @@ pipeline {
               exit /b 0
             )
             if not defined AZUREGUARD_API_URL set AZUREGUARD_API_URL=http://localhost:5006/api
-            for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('gitleaks-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + [Convert]::ToHexString($h.ComputeHash($body)).ToLowerInvariant()"') do set "GITLEAKS_SIGNATURE=%%S"
-            curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GITLEAKS&toolName=GITLEAKS&status=PASSED" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %GITLEAKS_SIGNATURE%" --data-binary "@gitleaks-report.json"
-            for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('trivy-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + [Convert]::ToHexString($h.ComputeHash($body)).ToLowerInvariant()"') do set "TRIVY_SIGNATURE=%%S"
+            for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('gitleaks-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "GITLEAKS_SIGNATURE=%%S"
+            curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GITLEAKS&toolName=GITLEAKS&status=PASSED&finalize=false" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %GITLEAKS_SIGNATURE%" --data-binary "@gitleaks-report.json"
+            for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('trivy-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "TRIVY_SIGNATURE=%%S"
             curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=SCA&toolName=TRIVY&status=PASSED" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %TRIVY_SIGNATURE%" --data-binary "@trivy-report.json"
           '''
         }
