@@ -10,23 +10,23 @@ The platform is intended to answer one important question:
 
 ## Honest current progress
 
-### Overall estimate: 30–35%
+### Overall estimate: approximately 65%
 
 This is a strong foundation and an early working prototype. It is not yet a complete DevSecOps platform.
 
 | Area | Current status | Estimate |
 |---|---|---:|
 | Layered backend structure | Created and connected | 70% |
-| Azure SQL integration | EF Core configuration and schema alignment started | 45% |
+| Azure SQL integration | EF Core configuration and schema aligned for release core | 75% |
 | JWT authentication | Signup, login, password hashing | 55% |
 | Project management | Project CRUD implemented | 70% |
 | Repository analysis | Basic public GitHub file detection | 40% |
-| Release management | Create and list releases | 35% |
-| Risk engine | Basic rule-based score and decision | 45% |
-| React frontend | Live API pages, no mock records | 45% |
+| Release management | Create, scan, approve/reject, and deployment gate | 80% |
+| Risk engine | Evidence-based rule evaluation and persisted decisions | 75% |
+| React frontend | Live project/release controls and decision display | 70% |
 | Swagger | Configured | 80% |
-| Jenkins integration | Trigger/webhook structure only | 25% |
-| Real scanner execution | Not working end-to-end yet | 0% |
+| Jenkins integration | Live Windows pipeline with automatic SCM trigger | 70% |
+| Real scanner execution | Gitleaks verified; Trivy wired, pending Docker verification | 30% |
 | AI explanation | Not implemented | 0% |
 | Deployment to ACR/AKS | Not implemented | 0% |
 | Automated tests | Not implemented | 0% |
@@ -81,14 +81,14 @@ This is a strong foundation and an early working prototype. It is not yet a comp
 
 ## Important current limitations
 
-- Jenkins is not available on the company laptop.
-- The Jenkins integration is currently an adapter, not a verified live pipeline.
-- The application currently accepts manually submitted scan totals through the API.
-- Scanner reports are not yet parsed into detailed findings.
+- Jenkins is verified on the personal Windows laptop with build and SCM polling.
+- Gitleaks reports are parsed into detailed findings and can produce a real BLOCKED decision.
+- Trivy is wired into Jenkins but Docker Desktop is not yet starting reliably.
+- Checkov, SonarQube, and test-report execution still need live pipeline verification.
 - Policy rules are partly represented in the database but the running engine still contains hardcoded rules.
 - The database contains more tables than the current backend fully uses.
 - Repository analysis currently supports public GitHub tree inspection and is not a complete private-repository analyzer.
-- The webhook endpoint needs authentication with a secret before production use.
+- Raw scanner report uploads now use HMAC-SHA256 signatures; the pipeline status callback still uses the shared-secret header.
 - The default JWT and Azure SQL values must remain placeholders in source code.
 
 ## Pending work, in the correct order
