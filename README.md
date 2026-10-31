@@ -1,81 +1,42 @@
-<<<<<<< HEAD
 # AzureGuard
 
-AzureGuard is a release risk tracking project with an ASP.NET Core API, SQL Server data model, an existing React client, and a separate Angular/TypeScript dashboard. It ingests scanner findings and applies deterministic release policy rules.
+AzureGuard is a DevSecOps release risk platform built around the existing ASP.NET Core API, EF Core SQL Server models, repository layer, scanner report parser and deterministic risk policy. The repository includes the existing React application and a separate Angular + TypeScript dashboard; Angular is the target UI and React remains available during transition.
 
-See [architecture](docs/ARCHITECTURE.md), [implementation status](docs/IMPLEMENTATION_STATUS.md), and [security design](docs/SECURITY_DESIGN.md) for scope and limitations.
+## Architecture
+
+The Angular app signs in through the API, then loads paginated findings and the release risk decision. It can request advisory remediation from the same .NET API. ASP.NET Core sanitizes scanner metadata and calls Azure OpenAI directly with `HttpClient`; there is no Python AI service. AI output never changes the deterministic release decision.
+
+The scanner parser accepts Gitleaks, Trivy, Checkov, SonarQube and JUnit formats. The risk engine returns `APPROVED`, `REVIEW_REQUIRED` or `BLOCKED`. Critical findings are hard blocked; scanner failures require review. Other severity weights are local policy values, not an external security standard.
 
 ## Run locally
 
-Copy `.env.example` to `.env`, replace local placeholders, then run `docker compose up --build`. The SQL schema must be applied separately using the scripts in `backend/database`; Compose does not run migrations. For direct development, use `npm ci && npm run dev` in `frontend`, `dotnet run --project backend/AzureGuard/AzureGuard` for the API, and `python -m uvicorn app.main:app --app-dir ai-service --reload --port 8000` for AI.
+1. Configure `ConnectionStrings__DefaultConnection`, `Jwt__Key` and optionally the `AzureOpenAI__Endpoint`, `AzureOpenAI__ApiKey`, `AzureOpenAI__Deployment`, `AzureOpenAI__ApiVersion` and `AzureOpenAI__TimeoutSeconds` environment values. Do not commit credentials. `.env.example` contains placeholders.
+2. Apply the existing SQL scripts in `backend/database` to a local SQL Server/Azure SQL database. Automatic schema migration is not configured.
+3. Start the API with `dotnet run --project backend/AzureGuard/AzureGuard`.
+4. Start Angular with `npm ci && npm start` from `frontend-angular`; open `http://localhost:4200`. Use a registered account. React remains runnable from `frontend` with `npm ci && npm run dev`.
+5. For local containers, use `docker compose up --build`; the Angular app is on port 4200 and the API on port 5006. Database schema setup remains manual.
 
-Configure `ConnectionStrings__DefaultConnection`, `Jwt__Key`, and (for live AI) `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT` through environment variables or secret storage. AI integration has not been tested with live credentials.
+## API endpoints
 
-## Verification commands
+- `POST /api/auth/login` and `POST /api/auth/signup`
+- Existing `/api/projects` and `/api/projects/{projectId}/releases` endpoints, including nested scan ingestion and dashboards
+- `GET /api/releases/{releaseId}/findings?page=1&pageSize=50`
+- `POST /api/releases/{releaseId}/risk-evaluation`
+- `POST /api/ai/remediation` (authenticated; calls Azure OpenAI directly)
+
+## Verification
 
 ```powershell
-dotnet restore backend/AzureGuard/AzureGuard.sln --configfile backend/NuGet.Config
-dotnet build backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore
+dotnet restore backend/AzureGuard/AzureGuard.sln --configfile backend/NuGet.Config -m:1
+dotnet build backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore -m:1
+dotnet test backend/AzureGuard/AzureGuard.sln --configuration Release --no-build -m:1
+npm install --prefix frontend-angular
+npm run build --prefix frontend-angular
 npm ci --prefix frontend
 npm run build --prefix frontend
-python -m pip install -r ai-service/requirements.txt
-python -m compileall ai-service/app
-python -m pytest ai-service/tests
 docker compose config
 ```
 
-GitHub Actions runs API build, React and Angular builds, Python tests, Gitleaks and Trivy on pull requests and pushes to `main`. To build Angular locally run `npm install && npm run build` in `frontend-angular`. Required status checks and branch protection must be configured in GitHub separately. See implementation status for components that remain planned or unverified.
-=======
-# AzureGuard Platform
+GitHub Actions builds and tests the .NET solution and Angular app, builds the retained React app, and runs Gitleaks and Trivy filesystem scans. Jenkins handles release report ingestion; the final scanner upload triggers policy evaluation. GitHub required checks and branch protection are configured separately. Live Azure OpenAI, SQL and Jenkins credentials are environment-specific and must be verified in the target environment.
 
-AzureGuard is an automated DevSecOps platform, secret interception gate, and agent-assisted CI/CD security engine. Designed to safeguard modern cloud and AI architectures, it detects exposed LLM keys, cloud secrets, and credential leaks before code reaches production.
-
-The platform is developed and maintained using **Spec-Driven Agentic Engineering workflows**—orchestrating AI coding agents across decoupled full-stack services with strict review gates and automated verification suites.
-
----
-
-## Architecture & Tech Stack
-
-- **Core Security Engine:** Python, Shannon entropy analysis, custom regex heuristics, and HMAC-SHA256 signature verification.
-- **Backend & APIs:** Python (FastAPI/Flask) and .NET / ASP.NET Core REST APIs with relational data schemas and token parsing pipelines.
-- **Frontend & Dashboard:** Modern responsive dashboard (React / Next.js / TypeScript) for audit trail monitoring, severity filtering, and real-time alerts.
-- **Cloud & CI/CD Pipelines:** GitHub Actions workflows and Windows/Linux runner pipelines (`Jenkinsfile`) targeting enterprise Azure deployments.
-- **Testing & Verification:** Comprehensive unit tests, integration contracts, and regression suites verifying scanner accuracy and zero-bypass security.
-
----
-
-## Agentic Development Workflow
-
-This codebase is built using parallel AI agent orchestration (Claude Code, Cursor, Copilot, and Codex) following strict engineering protocols:
-
-- **Spec-Driven Implementation:** Features and patches originate from structured written specs containing defined acceptance criteria and edge-case test expectations before agent execution.
-- **Isolated Multi-Session Worktrees:** Agent tasks execute in parallel on dedicated feature branches and Git worktrees to prevent overlapping diffs and maintain clean commit history.
-- **Context & Memory Engineering (`AGENTS.md`):** Maintained an active `AGENTS.md` ruleset documenting architectural patterns, schema contracts, and boundary constraints to eliminate repeated agent hallucinations.
-- **Human-in-the-Loop Diff Reviews:** Every agent-generated diff undergoes manual verification for tenant isolation, authentication/authorization checks, input sanitization, performance bottlenecks, and secrets hygiene prior to merging.
-- **Test-First Verification:** Agents must write deterministic tests that fail on regressions and pass strictly when the acceptance criteria are met.
-
----
-
-## Key Features
-
-- **Multi-Model Secret Detection:** Dedicated scanner signatures for OpenAI, Google Gemini, Azure OpenAI, AWS, and generic cloud authorization credentials.
-- **Automated CI/CD Quality Gate:** Halts pull requests and builds when high-entropy tokens or hardcoded secrets violate baseline compliance thresholds.
-- **HMAC Audit Log Verification:** Implements HMAC-SHA256 signing for scanner outputs to ensure scan integrity between build runners and central audit dashboards.
-- **Structured Compliance Outputs:** Emits standardized, machine-readable JSON reports detailing file locations, line indices, entropy metrics, and suggested remediations.
-- **Containerized Build Integration:** Packaged into lightweight Docker containers for plug-and-play execution across local workstations and cloud agents.
-
----
-
-## Project Structure
-
-```text
-azureguard-platform/
-├── .github/workflows/      # Automated GitHub Actions scanning & build gates
-├── backend/                # Scanner core, API services, and HMAC report verification
-├── frontend/               # Full-stack monitoring dashboard and audit log explorer
-├── tools/                  # Verification utilities, diagnostic scripts, and helper tools
-├── AGENTS.md               # Context rules, coding standards, and prompt constraints for AI agents
-├── Jenkinsfile             # Declarative pipeline script for automated CI/CD runners
-├── PROJECT_STATUS.md       # Development roadmap, milestones, and active tasks
-└── README.md               # Platform documentation and architecture specs
->>>>>>> 8a8a1d7931cc9b8f245f123b04d6620ebe1be51e
+See [architecture](docs/ARCHITECTURE.md), [implementation status](docs/IMPLEMENTATION_STATUS.md), and [security design](docs/SECURITY_DESIGN.md).

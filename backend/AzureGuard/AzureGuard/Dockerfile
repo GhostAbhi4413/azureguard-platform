@@ -1,8 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY . .
-RUN dotnet restore AzureGuard.sln --configfile ../NuGet.Config
-RUN dotnet publish AzureGuard/AzureGuard.csproj -c Release -o /out --no-restore
+COPY backend/NuGet.Config ./NuGet.Config
+COPY backend/AzureGuard/ .
+RUN dotnet restore AzureGuard.sln --configfile NuGet.Config -m:1
+RUN dotnet publish AzureGuard/AzureGuard.csproj -c Release -o /out --no-restore -m:1
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /out .

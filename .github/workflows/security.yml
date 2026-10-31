@@ -13,17 +13,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
+        with: { node-version: '24' }
       - run: dotnet restore backend/AzureGuard/AzureGuard.sln --configfile backend/NuGet.Config
-      - run: dotnet build backend/AzureGuard/AzureGuard.sln --no-restore --configuration Release
-      - run: dotnet test backend/AzureGuard/AzureGuard.sln --no-build --configuration Release
+      - run: dotnet build backend/AzureGuard/AzureGuard.sln --no-restore --configuration Release -m:1
+      - run: dotnet test backend/AzureGuard/AzureGuard.sln --no-build --configuration Release -m:1
       - run: npm ci && npm run build
         working-directory: frontend
-      - run: npm install && npm run build
+      - run: npm ci && npm run build
         working-directory: frontend-angular
-      - run: python -m pip install -r ai-service/requirements.txt && python -m pytest ai-service/tests
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

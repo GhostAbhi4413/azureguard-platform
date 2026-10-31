@@ -16,7 +16,7 @@ pipeline {
       if exist backend/AzureGuard/AzureGuard.sln (
         dotnet restore backend/AzureGuard/AzureGuard.sln --configfile backend/NuGet.Config
         if errorlevel 1 exit /b 1
-        dotnet build backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore
+        dotnet build backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore -m:1
         if errorlevel 1 exit /b 1
       )
       if exist frontend/package.json (
@@ -28,7 +28,7 @@ pipeline {
       )
     ''' } }
     stage('Test') { steps { bat '''
-      if exist backend/AzureGuard/AzureGuard.sln dotnet test backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore --no-build
+      if exist backend/AzureGuard/AzureGuard.sln dotnet test backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore --no-build -m:1
       if exist frontend/package.json echo Frontend tests will run when the test suite is added
     ''' } }
     stage('Security scan') {
@@ -53,7 +53,10 @@ pipeline {
             for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('gitleaks-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "GITLEAKS_SIGNATURE=%%S"
             curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GITLEAKS&toolName=GITLEAKS&status=PASSED&finalize=false" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %GITLEAKS_SIGNATURE%" --data-binary "@gitleaks-report.json"
             for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('trivy-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "TRIVY_SIGNATURE=%%S"
-            curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=SCA&toolName=TRIVY&status=PASSED" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %TRIVY_SIGNATURE%" --data-binary "@trivy-report.json"
+            curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=SCA&toolName=TRIVY&status=PASSED&finalize=true" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %TRIVY_SIGNATURE%" --data-binary "@trivy-report.json" -o policy-decision.json
+            if errorlevel 1 exit /b 1
+            powershell -NoProfile -Command "$d=Get-Content 'policy-decision.json' -Raw | ConvertFrom-Json; Write-Host ('AzureGuard decision: ' + $d.decision); if ($d.decision -eq 'BLOCKED') { exit 1 }; if ($d.decision -eq 'REVIEW_REQUIRED') { Write-Error 'Release requires reviewer approval.'; exit 2 }; if ($d.decision -ne 'APPROVED') { Write-Error 'Unknown AzureGuard decision.'; exit 3 }"
+            if errorlevel 1 exit /b 1
           '''
         }
       }

@@ -1,30 +1,31 @@
 services:
   api:
     build:
-      context: ./backend/AzureGuard
-      dockerfile: AzureGuard/Dockerfile
+      context: .
+      dockerfile: backend/AzureGuard/AzureGuard/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: ${AZUREGUARD_SQL_CONNECTION:-Server=db,1433;Database=AzureGuard;User Id=sa;Password=${SQL_PASSWORD:-LocalOnly_ChangeMe123!};Encrypt=False;}
-      Jwt__Key: ${JWT_KEY:-LocalOnly_Development_Key_Change_This_32Chars}
+      ConnectionStrings__DefaultConnection: ${AZUREGUARD_SQL_CONNECTION:?Set AZUREGUARD_SQL_CONNECTION in .env}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
       Jwt__Issuer: AzureGuard
       Jwt__Audience: AzureGuard.Client
-      AI__BaseUrl: http://ai:8000
+      AzureOpenAI__Endpoint: ${AZURE_OPENAI_ENDPOINT:-}
+      AzureOpenAI__ApiKey: ${AZURE_OPENAI_API_KEY:-}
+      AzureOpenAI__Deployment: ${AZURE_OPENAI_DEPLOYMENT:-}
+      AzureOpenAI__ApiVersion: ${AZURE_OPENAI_API_VERSION:-2024-10-21}
+      AzureOpenAI__TimeoutSeconds: ${AZURE_OPENAI_TIMEOUT_SECONDS:-25}
     ports: ["5006:8080"]
-    depends_on: [db, ai]
-  ai:
-    build: ./ai-service
-    environment:
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
-      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
-      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
-    ports: ["8000:8000"]
+    depends_on: [db]
+  angular:
+    build: ./frontend-angular
+    ports: ["4200:80"]
+    depends_on: [api]
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: Y
       MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: ${SQL_PASSWORD:-LocalOnly_ChangeMe123!}
+      MSSQL_SA_PASSWORD: ${SQL_PASSWORD:?Set SQL_PASSWORD in .env}
     ports: ["1433:1433"]
     volumes: ["sql-data:/var/opt/mssql"]
 volumes:

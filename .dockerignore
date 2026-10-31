@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/.angular
+**/__pycache__
+**/.pytest_cache
+.env
+**/.env

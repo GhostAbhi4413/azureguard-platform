@@ -11,11 +11,11 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.AllowAnyHeader().Al
 builder.Services.AddHttpClient<RepositoryAnalyzer>();
 builder.Services.Configure<JenkinsOptions>(builder.Configuration.GetSection("Jenkins"));
 builder.Services.AddHttpClient<JenkinsService>();
-builder.Services.AddHttpClient("ai-remediation", client =>
+builder.Services.Configure<AzureOpenAiOptions>(builder.Configuration.GetSection(AzureOpenAiOptions.SectionName));
+builder.Services.AddHttpClient<IAiRemediationService, AzureOpenAiRemediationService>((services, client) =>
 {
-    var baseUrl = builder.Configuration["AI:BaseUrl"] ?? "http://localhost:8000";
-    client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(25);
+    var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureOpenAiOptions>>().Value;
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 1, 120));
 });
 
 // Add services to the container.
