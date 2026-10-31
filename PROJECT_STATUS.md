@@ -2,27 +2,23 @@
 
 ## Current implementation
 
-AzureGuard is an ASP.NET Core 8 API with EF Core SQL Server models, repositories, release/scanner ingestion, a deterministic risk engine, a React application retained during transition, and a separate Angular + TypeScript dashboard. Azure OpenAI remediation now runs directly in the .NET API through a typed service using `HttpClient`; the repository has no Python AI service.
+AzureGuard uses the existing ASP.NET Core API, EF Core SQL Server models, repositories, scan parsers and deterministic policy engine. The active dashboard is Angular + TypeScript in `frontend-angular/`; the existing React/Vite app in `frontend/` remains available during the transition.
 
-| Area | Status | Evidence / limitation |
+AI remediation is a two-hop flow: Angular calls the authenticated .NET `POST /api/ai/remediation`; the .NET typed client forwards sanitized finding metadata to internal FastAPI `POST /api/remediation`; Python calls the configured Azure OpenAI deployment. Mocked Python tests and .NET HTTP-boundary tests cover the contract. No live Azure OpenAI request has been verified.
+
+| Area | Status | Evidence / remaining limitation |
 |---|---|---|
-| Backend API and EF Core | Implemented | Existing layered solution, SQL Server context, auth, projects, releases and scan routes; SQL schema still must be provisioned manually. |
-| Risk policy | Implemented | Decisions are `APPROVED`, `REVIEW_REQUIRED`, `BLOCKED`; critical findings hard block, scanner failure requires review. Weights are local policy choices. |
-| Scanner ingestion | Partial | Gitleaks, Trivy, Checkov, SonarQube and JUnit parsers normalize reports; Jenkins executes Gitleaks and Trivy. SonarQube and Git diff scans are not run in CI. |
-| Azure OpenAI | Implemented, live call unverified | C# service sends sanitized finding metadata, redacts credential patterns, uses timeout/retry and returns structured guidance. Requires endpoint, deployment and key. Mock HTTP tests cover output, redaction and provider errors. |
-| Angular app | Implemented | Login, findings, release decision and AI explanation views connect to the API. |
-| React app | Retained and builds | Existing functionality remains while Angular is brought forward. |
-| CI/CD | Partial | GitHub Actions builds/tests .NET and Angular, builds React, runs Gitleaks/Trivy. Jenkins submits reports and fails on `BLOCKED` and `REVIEW_REQUIRED`. Configure branch protections separately. |
-| Docker | Configuration present | Compose starts SQL Server, API and Angular; SQL schema setup is manual. Compose config validates; images were not built here. |
-| Automated checks | Passed locally | .NET solution build, 7 .NET tests, Angular production build, React production build, Angular npm audit, Compose config validation. No live Azure SQL/OpenAI/Jenkins execution. |
+| ASP.NET Core and EF Core | Implemented | Existing layered API, SQL Server context, auth, project/release and scanner routes; SQL schema setup remains manual. |
+| Risk policy | Implemented | Returns `APPROVED`, `REVIEW_REQUIRED` or `BLOCKED`; critical findings hard block and scanner failures require review. Weights are project-defined. |
+| Scanner ingestion | Partial | Parsers exist for Gitleaks, Trivy, Checkov, SonarQube and JUnit. Jenkins executes Gitleaks and Trivy and uploads reports. |
+| Angular dashboard | Implemented | Login, findings, risk decision and remediation are wired to the .NET API. |
+| React dashboard | Retained | Existing Vite client still builds and remains available. |
+| Python AI service | Implemented, live call unverified | FastAPI validates finding metadata and calls Azure OpenAI with configured timeout/retries; tests use a mocked AI client. |
+| .NET AI bridge | Implemented | Validates/redacts the request, calls configured Python base URL, maps structured response, and handles timeouts/service errors. HTTP boundary is mocked in unit tests. |
+| GitHub Actions and Jenkins | Implemented with gaps | Actions builds/tests .NET, both frontends and Python; Gitleaks and Trivy run in Actions. Jenkins uploads reports and fails on `BLOCKED`/`REVIEW_REQUIRED`. Branch protection is external configuration. |
+| Docker Compose | Configured | SQL Server, API, Python AI service and Angular UI; configuration validation requires `.env` values. Schema bootstrap is manual. |
+| SonarQube and Git-diff analysis | Incomplete | SonarQube report parser exists, but CI does not run the scanner. Sensitive Git-diff detection is not implemented. |
 
-## Known gaps
+## Environment and verification limits
 
-- Azure SQL schema initialization/migrations are not automated.
-- No real Azure OpenAI call has been verified; values must be supplied through environment/secret configuration.
-- SonarQube is parsed by the backend but not executed by Jenkins or GitHub Actions. Git diff sensitive-configuration detection is not implemented.
-- No Angular component test suite is configured; the Angular production build passes.
-- The policy engine uses project-defined severity weights; these are not an external standard.
-- Authentication, authorization, rate limiting, secret rotation and deployment hardening need a separate review before production use.
-
-See `README.md`, `docs/ARCHITECTURE.md`, and `docs/SECURITY_DESIGN.md` for local setup and request flow.
+Set SQL connection/password and a strong JWT key in `.env`. Live AI requires a valid Azure OpenAI endpoint, API key and deployment. Local automated tests do not call Azure. Compose does not initialize the SQL schema. No production-readiness claim is made.

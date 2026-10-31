@@ -11,10 +11,10 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.AllowAnyHeader().Al
 builder.Services.AddHttpClient<RepositoryAnalyzer>();
 builder.Services.Configure<JenkinsOptions>(builder.Configuration.GetSection("Jenkins"));
 builder.Services.AddHttpClient<JenkinsService>();
-builder.Services.Configure<AzureOpenAiOptions>(builder.Configuration.GetSection(AzureOpenAiOptions.SectionName));
-builder.Services.AddHttpClient<IAiRemediationService, AzureOpenAiRemediationService>((services, client) =>
+builder.Services.Configure<PythonAiOptions>(builder.Configuration.GetSection(PythonAiOptions.SectionName));
+builder.Services.AddHttpClient<IAiRemediationService, PythonAiRemediationService>((services, client) =>
 {
-    var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureOpenAiOptions>>().Value;
+    var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PythonAiOptions>>().Value;
     client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 1, 120));
 });
 

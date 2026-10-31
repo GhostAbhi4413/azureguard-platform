@@ -8,49 +8,49 @@ using Xunit;
 
 namespace BusinessLayer.Tests;
 
-public sealed class AzureOpenAiRemediationTests
+public sealed class PythonAiRemediationTests
 {
     [Fact]
-    public async Task SendsRedactedFindingAndReturnsStructuredGuidance()
+    public async Task ForwardsRedactedFindingToPythonServiceAndReturnsStructuredGuidance()
     {
         string? captured = null;
         string? capturedKey = null;
-        var responseContent = JsonSerializer.Serialize(new RemediationResponse("A token was found.", "Account access.", "Rotate it.", ["Use a secret store."]));
-        var payload = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = responseContent } } } });
+        var payload = JsonSerializer.Serialize(new RemediationResponse("A token was found.", "Account access.", "Rotate it.", ["Use a secret store."]), new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var handler = new StubHandler((request, _) =>
         {
             captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            capturedKey = request.Headers.GetValues("api-key").Single();
+            capturedKey = request.Headers.TryGetValues("api-key", out var apiKeys) ? apiKeys.Single() : null;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload, Encoding.UTF8, "application/json") });
         });
         using var loggerFactory = LoggerFactory.Create(_ => { });
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
-        var service = new AzureOpenAiRemediationService(client, Options.Create(new AzureOpenAiOptions
+        var service = new PythonAiRemediationService(client, Options.Create(new PythonAiOptions
         {
-            Endpoint = "https://example.test", ApiKey = "unit-test-key", Deployment = "test-deployment"
-        }), loggerFactory.CreateLogger<AzureOpenAiRemediationService>());
+            BaseUrl = "http://ai-service:8000"
+        }), loggerFactory.CreateLogger<PythonAiRemediationService>());
 
         var result = await service.ExplainAsync(new RemediationRequest("GITLEAKS", "rule-1", "CRITICAL", "appsettings.json", "token=do-not-send", null), CancellationToken.None);
 
         Assert.Equal("Rotate it.", result.SuggestedRemediation);
         Assert.Contains("[REDACTED]", captured);
         Assert.DoesNotContain("do-not-send", captured);
-        Assert.Equal("unit-test-key", capturedKey);
-        Assert.Contains("test-deployment", handler.LastRequestUri);
+        Assert.Null(capturedKey);
+        Assert.Contains("http://ai-service:8000/api/remediation", handler.LastRequestUri);
+        Assert.Contains("\"findingId\"", captured);
     }
 
     [Fact]
-    public async Task ProviderErrorsBecomeSafeUnavailableException()
+    public async Task PythonServiceErrorsBecomeSafeUnavailableException()
     {
         var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)
         {
             Content = new StringContent("private provider detail")
         }));
         using var loggerFactory = LoggerFactory.Create(_ => { });
-        var service = new AzureOpenAiRemediationService(new HttpClient(handler), Options.Create(new AzureOpenAiOptions
+        var service = new PythonAiRemediationService(new HttpClient(handler), Options.Create(new PythonAiOptions
         {
-            Endpoint = "https://example.test", ApiKey = "unit-test-key", Deployment = "test-deployment"
-        }), loggerFactory.CreateLogger<AzureOpenAiRemediationService>());
+            BaseUrl = "http://ai-service:8000"
+        }), loggerFactory.CreateLogger<PythonAiRemediationService>());
 
         var exception = await Assert.ThrowsAsync<AiRemediationUnavailableException>(() => service.ExplainAsync(
             new RemediationRequest("TRIVY", "CVE-TEST", "HIGH", null, "Demo finding", null), CancellationToken.None));
@@ -61,18 +61,17 @@ public sealed class AzureOpenAiRemediationTests
     public async Task OmitsMultilineSourceLikeScannerText()
     {
         string? captured = null;
-        var responseContent = JsonSerializer.Serialize(new RemediationResponse("Explanation", "Impact", "Fix", ["Prevent"]));
-        var payload = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = responseContent } } } });
+        var payload = JsonSerializer.Serialize(new RemediationResponse("Explanation", "Impact", "Fix", ["Prevent"]), new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var handler = new StubHandler((request, _) =>
         {
             captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload, Encoding.UTF8, "application/json") });
         });
         using var loggerFactory = LoggerFactory.Create(_ => { });
-        var service = new AzureOpenAiRemediationService(new HttpClient(handler), Options.Create(new AzureOpenAiOptions
+        var service = new PythonAiRemediationService(new HttpClient(handler), Options.Create(new PythonAiOptions
         {
-            Endpoint = "https://example.test", ApiKey = "unit-test-key", Deployment = "test-deployment"
-        }), loggerFactory.CreateLogger<AzureOpenAiRemediationService>());
+            BaseUrl = "http://ai-service:8000"
+        }), loggerFactory.CreateLogger<PythonAiRemediationService>());
 
         await service.ExplainAsync(new RemediationRequest("SAST", "rule-2", "MEDIUM", "source.cs", "private source\nclass SecretCode {}", null), CancellationToken.None);
 

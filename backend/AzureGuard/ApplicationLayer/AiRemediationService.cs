@@ -6,13 +6,10 @@ using Microsoft.Extensions.Options;
 
 namespace ApplicationLayer;
 
-public sealed class AzureOpenAiOptions
+public sealed class PythonAiOptions
 {
-    public const string SectionName = "AzureOpenAI";
-    public string Endpoint { get; set; } = "";
-    public string ApiKey { get; set; } = "";
-    public string Deployment { get; set; } = "";
-    public string ApiVersion { get; set; } = "2024-10-21";
+    public const string SectionName = "AI";
+    public string BaseUrl { get; set; } = "http://localhost:8000";
     public int TimeoutSeconds { get; set; } = 25;
 }
 
@@ -33,7 +30,7 @@ public interface IAiRemediationService
 
 public sealed class AiRemediationUnavailableException(string message, Exception? innerException = null) : Exception(message, innerException);
 
-public sealed class AzureOpenAiRemediationService(HttpClient httpClient, IOptions<AzureOpenAiOptions> options, ILogger<AzureOpenAiRemediationService> logger) : IAiRemediationService
+public sealed class PythonAiRemediationService(HttpClient httpClient, IOptions<PythonAiOptions> options, ILogger<PythonAiRemediationService> logger) : IAiRemediationService
 {
     private static readonly Regex SecretPattern = new(
         @"(?i)(api[_-]?key|secret|password|token|authorization)\s*[:=]\s*[^\s,;]+|Bearer\s+[A-Za-z0-9._~+/-]+=*",
@@ -41,12 +38,12 @@ public sealed class AzureOpenAiRemediationService(HttpClient httpClient, IOption
     private static readonly Regex SourcePattern = new(
         @"(?im)^\s*(?:using|import|namespace|class|def|function)\s+|\b(?:const|let|var)\s+\w+\s*=|\b(?:SELECT|INSERT|UPDATE|DELETE)\s+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private readonly AzureOpenAiOptions _options = options.Value;
+    private readonly PythonAiOptions _options = options.Value;
 
     public async Task<RemediationResponse> ExplainAsync(RemediationRequest finding, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(_options.Endpoint, UriKind.Absolute, out var endpoint) || string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Deployment))
-            throw new AiRemediationUnavailableException("Azure OpenAI is not configured.");
+        if (!Uri.TryCreate(_options.BaseUrl, UriKind.Absolute, out var baseUri))
+            throw new AiRemediationUnavailableException("AI remediation service is not configured.");
 
         // Only normalized finding metadata is sent. Common credential patterns in scanner text are redacted.
         var safeFinding = new
@@ -58,59 +55,42 @@ public sealed class AzureOpenAiRemediationService(HttpClient httpClient, IOption
             Description = Redact(finding.Description),
             CommitReference = Redact(finding.CommitReference)
         };
-        var url = $"{endpoint.ToString().TrimEnd('/')}/openai/deployments/{Uri.EscapeDataString(_options.Deployment)}/chat/completions?api-version={Uri.EscapeDataString(_options.ApiVersion)}";
-        var payload = new
-        {
-            temperature = 0.2,
-            response_format = new { type = "json_object" },
-            messages = new object[]
-            {
-                new { role = "system", content = "You are a defensive security assistant. Return only a JSON object with string fields explanation, potentialImpact, suggestedRemediation, and an array of string preventionMeasures. Use only the provided sanitized finding metadata. Never request source code or secrets." },
-                new { role = "user", content = JsonSerializer.Serialize(safeFinding) }
-            }
-        };
-
         for (var attempt = 0; attempt < 2; attempt++)
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, url);
-                request.Headers.TryAddWithoutValidation("api-key", _options.ApiKey);
-                request.Content = JsonContent.Create(payload);
-                using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var response = await httpClient.PostAsJsonAsync(new Uri(baseUri, "/api/remediation"), safeFinding, cancellationToken);
                 if ((int)response.StatusCode == 429 || (int)response.StatusCode >= 500)
                 {
                     if (attempt == 0) { await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken); continue; }
                 }
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogWarning("Azure OpenAI returned HTTP {StatusCode}", (int)response.StatusCode);
-                    throw new AiRemediationUnavailableException("Azure OpenAI could not provide remediation guidance.");
+                    logger.LogWarning("Python AI service returned HTTP {StatusCode}", (int)response.StatusCode);
+                    throw new AiRemediationUnavailableException("AI remediation service could not provide guidance.");
                 }
-                using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-                var content = document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-                var result = JsonSerializer.Deserialize<RemediationResponse>(content ?? "", new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                var result = await response.Content.ReadFromJsonAsync<RemediationResponse>(new JsonSerializerOptions(JsonSerializerDefaults.Web), cancellationToken);
                 if (result is null || string.IsNullOrWhiteSpace(result.Explanation) || string.IsNullOrWhiteSpace(result.PotentialImpact) || string.IsNullOrWhiteSpace(result.SuggestedRemediation) || result.PreventionMeasures is null)
-                    throw new AiRemediationUnavailableException("Azure OpenAI returned an invalid remediation response.");
+                    throw new AiRemediationUnavailableException("AI remediation service returned an invalid response.");
                 return result;
             }
             catch (AiRemediationUnavailableException) { throw; }
             catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new AiRemediationUnavailableException("Azure OpenAI request timed out.", ex);
+                throw new AiRemediationUnavailableException("AI remediation service request timed out.", ex);
             }
             catch (HttpRequestException ex)
             {
-                logger.LogWarning("Azure OpenAI request failed ({StatusCode})", ex.StatusCode is null ? "network" : ((int)ex.StatusCode.Value).ToString());
-                throw new AiRemediationUnavailableException("Azure OpenAI is temporarily unavailable.", ex);
+                logger.LogWarning("Python AI service request failed ({StatusCode})", ex.StatusCode is null ? "network" : ((int)ex.StatusCode.Value).ToString());
+                throw new AiRemediationUnavailableException("AI remediation service is temporarily unavailable.", ex);
             }
             catch (Exception ex) when (ex is JsonException or KeyNotFoundException or IndexOutOfRangeException or InvalidOperationException)
             {
-                logger.LogWarning("Azure OpenAI response did not match the remediation contract.");
-                throw new AiRemediationUnavailableException("Azure OpenAI returned an invalid remediation response.", ex);
+                logger.LogWarning("Python AI service response did not match the remediation contract.");
+                throw new AiRemediationUnavailableException("AI remediation service returned an invalid response.", ex);
             }
         }
-        throw new AiRemediationUnavailableException("Azure OpenAI is temporarily unavailable.");
+        throw new AiRemediationUnavailableException("AI remediation service is temporarily unavailable.");
     }
 
     private static string? Redact(string? value)
