@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddScoped<ScannerReportParser>();
+builder.Services.AddSingleton<GitDiffContextSanitizer>();
 builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
 builder.Services.AddHttpClient<RepositoryAnalyzer>();
 builder.Services.Configure<JenkinsOptions>(builder.Configuration.GetSection("Jenkins"));
@@ -20,7 +21,7 @@ builder.Services.AddHttpClient<IAiRemediationService, PythonAiRemediationService
 
 // Add services to the container.
 
-builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null))); builder.Services.AddScoped<PasswordService>(); builder.Services.AddScoped<AuthService>(); builder.Services.AddScoped<ScannerReportParser>(); builder.Services.AddScoped<ReleaseService>(); builder.Services.AddScoped<RiskPolicyEngine>(); builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>)); var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!); builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o => o.TokenValidationParameters = new TokenValidationParameters { ValidateIssuer = true, ValidIssuer = builder.Configuration["Jwt:Issuer"], ValidateAudience = true, ValidAudience = builder.Configuration["Jwt:Audience"], ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(key), ValidateLifetime = true }); builder.Services.AddAuthorization(); builder.Services.AddControllers();
+builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null))); builder.Services.AddScoped<PasswordService>(); builder.Services.AddScoped<AuthService>(); builder.Services.AddScoped<ScannerReportParser>(); builder.Services.AddScoped<ReleaseService>(); builder.Services.AddScoped<ChangeImpactService>(); builder.Services.AddScoped<RiskPolicyEngine>(); builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>)); var key = Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!); builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o => o.TokenValidationParameters = new TokenValidationParameters { ValidateIssuer = true, ValidIssuer = builder.Configuration["Jwt:Issuer"], ValidateAudience = true, ValidAudience = builder.Configuration["Jwt:Audience"], ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(key), ValidateLifetime = true }); builder.Services.AddAuthorization(); builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

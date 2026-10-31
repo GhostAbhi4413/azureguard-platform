@@ -16,10 +16,10 @@
   <text x="66" y="150" class="muted txt">Scanner evidence drives policy. AI explains findings after the fact; it never changes the decision.</text>
 
   <rect x="65" y="215" width="255" height="112" rx="16" class="box"/>
-  <text x="89" y="249" class="aqua label">FRONTEND</text><text x="89" y="280" class="white head">Angular dashboard</text><text x="89" y="306" class="muted txt">JWT · findings · remediation</text>
+  <text x="89" y="249" class="aqua label">FRONTEND</text><text x="89" y="280" class="white head">Angular dashboard</text><text x="89" y="306" class="muted txt">JWT · projects/releases · findings · AI</text>
 
   <rect x="65" y="481" width="255" height="130" rx="16" class="box"/>
-  <text x="89" y="515" class="amber label">SCANNER PIPELINE</text><text x="89" y="547" class="white head">Jenkins</text><text x="89" y="574" class="muted txt">Gitleaks + Trivy reports</text><text x="89" y="596" class="muted txt">Signed report upload</text>
+  <text x="89" y="515" class="amber label">SCANNER PIPELINE</text><text x="89" y="547" class="white head">Jenkins</text><text x="89" y="574" class="muted txt">Gitleaks + Trivy + Git diff</text><text x="89" y="596" class="muted txt">Signed report upload</text>
 
   <rect x="398" y="326" width="310" height="190" rx="18" class="box3"/>
   <text x="425" y="365" class="aqua label">APPLICATION API · ASP.NET CORE</text><text x="425" y="401" class="white head">Auth + controllers</text><text x="425" y="433" class="white txt">Validate DTOs · enforce JWT</text><text x="425" y="461" class="white txt">Normalize scanner reports</text><text x="425" y="489" class="white txt">Proxy sanitized AI requests</text>
@@ -47,6 +47,6 @@
 
   <rect x="65" y="724" width="1370" height="112" rx="18" fill="#0d1829" stroke="#263954"/>
   <text x="93" y="762" class="aqua label">IMPLEMENTATION BOUNDARIES</text>
-  <text x="93" y="794" class="white txt">Implemented: Angular ↔ .NET APIs · .NET ↔ Python contract · Python mocked provider tests · Gitleaks/Trivy report path · deterministic decisions.</text>
-  <text x="93" y="820" class="muted txt">Unverified/incomplete: live Azure OpenAI/SQL/Jenkins execution · SonarQube CI execution · sensitive Git-diff analysis.</text>
+  <text x="93" y="794" class="white txt">Implemented: Angular project/release flow · .NET/Python AI contract · Gitleaks/Trivy/Git diff ingestion · deterministic decisions.</text>
+  <text x="93" y="820" class="muted txt">Unverified: live Azure OpenAI/SQL/Jenkins/SonarQube · Docker startup · browser E2E; Git-diff rules are heuristic.</text>
 </svg>

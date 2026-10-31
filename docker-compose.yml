@@ -12,15 +12,24 @@ services:
       AI__BaseUrl: http://ai:8000
       AI__TimeoutSeconds: 25
     ports: ["5006:8080"]
-    depends_on: [db, ai]
+    depends_on:
+      db:
+        condition: service_healthy
+      ai:
+        condition: service_healthy
   ai:
     build: ./ai-service
     environment:
-      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:?Set AZURE_OPENAI_ENDPOINT in .env}
-      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:?Set AZURE_OPENAI_API_KEY in .env}
-      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:?Set AZURE_OPENAI_DEPLOYMENT in .env}
-      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-10-21}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4.1-mini}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-v1}
       AZURE_OPENAI_TIMEOUT_SECONDS: ${AZURE_OPENAI_TIMEOUT_SECONDS:-25}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
   angular:
     build: ./frontend-angular
     ports: ["4200:80"]
@@ -33,5 +42,11 @@ services:
       MSSQL_SA_PASSWORD: ${SQL_PASSWORD:?Set SQL_PASSWORD in .env}
     ports: ["1433:1433"]
     volumes: ["sql-data:/var/opt/mssql"]
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${SQL_PASSWORD}", "-C", "-b", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
 volumes:
   sql-data:

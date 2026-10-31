@@ -23,9 +23,27 @@ public sealed record RemediationRequest(
 
 public sealed record RemediationResponse(string Explanation, string PotentialImpact, string SuggestedRemediation, IReadOnlyList<string> PreventionMeasures);
 
+public sealed record ChangeImpactRequest(
+    [property: StringLength(80)] string? CommitReference,
+    [property: Required, MinLength(1), MaxLength(40)] IReadOnlyList<string> Files,
+    [property: Required, StringLength(12000, MinimumLength = 1)] string Diff);
+
+public sealed record ChangeEvidence(string FilePath, string ChangeSummary, string Rationale);
+
+public sealed record ChangeImpactResponse(
+    string PotentialRisk,
+    string Explanation,
+    IReadOnlyList<ChangeEvidence> Evidence,
+    string Remediation,
+    IReadOnlyList<string> RecommendedTests,
+    bool ManualReviewRecommended,
+    string ModelId,
+    string DeploymentName);
+
 public interface IAiRemediationService
 {
     Task<RemediationResponse> ExplainAsync(RemediationRequest finding, CancellationToken cancellationToken);
+    Task<ChangeImpactResponse> AnalyzeChangeImpactAsync(ChangeImpactRequest change, CancellationToken cancellationToken);
 }
 
 public sealed class AiRemediationUnavailableException(string message, Exception? innerException = null) : Exception(message, innerException);
@@ -91,6 +109,50 @@ public sealed class PythonAiRemediationService(HttpClient httpClient, IOptions<P
             }
         }
         throw new AiRemediationUnavailableException("AI remediation service is temporarily unavailable.");
+    }
+
+    public async Task<ChangeImpactResponse> AnalyzeChangeImpactAsync(ChangeImpactRequest change, CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(_options.BaseUrl, UriKind.Absolute, out var baseUri))
+            throw new AiRemediationUnavailableException("AI change-impact service is not configured.");
+
+        try
+        {
+            using var response = await httpClient.PostAsJsonAsync(new Uri(baseUri, "/api/change-impact"), change, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Python change-impact service returned HTTP {StatusCode}", (int)response.StatusCode);
+                throw new AiRemediationUnavailableException("AI change-impact service could not provide an analysis.");
+            }
+            var result = await response.Content.ReadFromJsonAsync<ChangeImpactResponse>(new JsonSerializerOptions(JsonSerializerDefaults.Web), cancellationToken);
+            if (result is null || !new[] { "LOW", "MEDIUM", "HIGH", "CRITICAL" }.Contains(result.PotentialRisk, StringComparer.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(result.Explanation) || result.Explanation.Length > 2000
+                || string.IsNullOrWhiteSpace(result.Remediation) || result.Remediation.Length > 2000
+                || result.Evidence is null || result.Evidence.Count > 20
+                || result.Evidence.Any(x => string.IsNullOrWhiteSpace(x.FilePath) || x.FilePath.Length > 240
+                    || string.IsNullOrWhiteSpace(x.ChangeSummary) || x.ChangeSummary.Length > 500
+                    || string.IsNullOrWhiteSpace(x.Rationale) || x.Rationale.Length > 700)
+                || result.RecommendedTests is null || result.RecommendedTests.Count is < 1 or > 20
+                || result.RecommendedTests.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 500)
+                || string.IsNullOrWhiteSpace(result.ModelId) || string.IsNullOrWhiteSpace(result.DeploymentName))
+                throw new AiRemediationUnavailableException("AI change-impact service returned an invalid response.");
+            return result;
+        }
+        catch (AiRemediationUnavailableException) { throw; }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new AiRemediationUnavailableException("AI change-impact request timed out.", ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning("Python change-impact request failed ({StatusCode})", ex.StatusCode is null ? "network" : ((int)ex.StatusCode.Value).ToString());
+            throw new AiRemediationUnavailableException("AI change-impact service is temporarily unavailable.", ex);
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            logger.LogWarning("Python change-impact response did not match its response contract.");
+            throw new AiRemediationUnavailableException("AI change-impact service returned an invalid response.", ex);
+        }
     }
 
     private static string? Redact(string? value)

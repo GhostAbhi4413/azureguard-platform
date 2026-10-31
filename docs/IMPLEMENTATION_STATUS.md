@@ -1,16 +1,22 @@
 # Implementation status
 
-| Component | Status | Notes |
-|---|---|---|
-| React + TypeScript UI | Retained | Existing Vite client remains available during Angular transition. |
-| Angular + TypeScript UI | Implemented | Dashboard login and views use .NET findings, risk-evaluation, and AI-remediation endpoints. |
-| ASP.NET Core API | Implemented | Auth, projects, releases, scans, Jenkins and findings/risk/AI routes. |
-| SQL Server/Azure SQL | Implemented with setup gap | EF Core context and SQL scripts exist; no automatic migration/bootstrap. |
-| Risk engine | Implemented | Deterministic local weighted policy, critical hard block, duplicate normalized finding collapse, failed scanner review. |
-| Scanner reports | Partial | Gitleaks, Trivy, Checkov, SonarQube, JUnit parsers; Jenkins workflow runs Gitleaks/Trivy. |
-| AI remediation | Implemented, external call unverified | .NET forwards redacted DTOs to Python FastAPI; Python uses Azure OpenAI. Python tests mock the AI client; .NET tests mock the HTTP boundary. Requires endpoint, key, deployment. |
-| Docker | Partial | Compose and Dockerfiles for API, Angular, Python AI and SQL Server; database schema bootstrap is manual. Requires SQL/JWT/Azure OpenAI values in `.env`. |
-| GitHub Actions | Implemented | Builds/tests .NET, builds Angular and retained React, runs mocked Python AI tests, Gitleaks and Trivy. Jenkins submits reports and fails on `BLOCKED` or `REVIEW_REQUIRED`. Branch protection must be configured separately. |
-| SonarQube and Git diff | Incomplete | SonarQube parser exists, but the CI pipelines do not execute it. Sensitive Git-diff detection is not implemented. |
+Status reflects repository code and checks run for the current revision. “Verified” means a local build, unit/contract test, or configuration check; it does not imply a live cloud deployment.
 
-Use `.env.example` for placeholders only. No live Azure OpenAI/SQL integration or production readiness is claimed.
+| Component | Status | Verification and limitations |
+|---|---|---|
+| Angular + TypeScript | Implemented as primary UI | Signup/login, project list/create, release list/create/select, findings, deterministic risk, existing AI remediation and stored AI change-impact view use existing .NET API routes. Production build passed; browser/API E2E is not present. |
+| React + TypeScript | Retained | Existing Vite client remains during Angular transition and remains part of CI build. |
+| ASP.NET Core API / EF Core | Implemented | Existing auth, projects, releases, report ingestion, findings, risk, Jenkins, and AI endpoints are retained. Local SQL runtime depends on database setup and credentials. |
+| Python FastAPI AI service | Implemented with explicit mocks in tests | Existing remediation contract remains. New `/api/change-impact` accepts bounded sanitized diff context and returns validated potential risk, explanation, evidence, remediation, recommended tests, review recommendation, model ID and deployment name. Provider calls require endpoint/key; missing config returns 503. No live Azure OpenAI call is verified. |
+| Risk-policy engine | Implemented | Deterministic local weighting, duplicate finding collapse, critical hard block, failed-scanner review, and new Git-diff review gate. Unit tests cover the new gate. |
+| Git diff + AI impact | Implemented | PR workflow can submit base-to-head diffs to the signed existing report endpoint when project/release/API/webhook secrets are supplied. .NET filters and redacts bounded context, calls the same Python AI service, and stores structured output or explicit `UNAVAILABLE`/`SKIPPED` status by release and commit. Raw diffs are not persisted. Detection is heuristic and model output advisory. |
+| Angular AI impact view | Implemented | The existing dashboard fetches and displays the latest release change-impact analysis, evidence, remediation, tests, model/deployment, and unavailable/skipped status. AI recommendation does not alter deterministic policy status. |
+| Gitleaks / Trivy | Implemented in Jenkins flow | Reports use signed raw-report endpoint and feed normalized findings to policy. Real scanner execution requires Jenkins tools and configured release context/secret. |
+| SonarQube | Parser implemented and fixture tested; execution optional | Sonar `issues` report JSON maps to normalized findings. GitHub Actions scans only when host, token, and project-key secrets are supplied. CI analysis is not automatically attached to a release; no Sonar server was available for live verification. |
+| SQL database initialization | Implemented for local SQL Server | `001_initial_schema.sql` plus existing `002`/`003` scripts are repeatable and non-dropping; `tools/initialize-local-sql.ps1` applies them explicitly. The script is not invoked by app startup or Compose. Live SQL execution was not verified without a database. |
+| Docker Compose | Configuration present | API, Python AI, Angular, and SQL Server services; SQL/AI health checks gate API startup. Configuration can be validated locally; actual image build/start requires Docker daemon, SQL password, and AI settings. No automatic database migration is performed. |
+| CI | Implemented | GitHub Actions includes .NET, React, Angular, Python tests, Gitleaks, Trivy, and optional Sonar scan. Jenkins includes builds/tests and report gate, subject to its local tools and credentials. |
+
+Azure model ID is `gpt-4.1-mini` (model version `2025-04-14`); configured deployment name defaults to `gpt-4.1-mini`. The implementation uses Azure OpenAI API version `v1` through the OpenAI Python SDK's `AsyncOpenAI` client and API-key authentication from environment/secret-store values. No live Azure OpenAI request, SonarQube server, Azure SQL, Jenkins credential, browser E2E, or Docker daemon result is inferred from mocked tests or static configuration checks. The repository is not claimed production-ready.
+
+Local verification for this revision: .NET Release build passed; 17 .NET tests passed; 12 Python tests passed; Angular production build passed; Python `compileall` passed; Docker Compose config validation passed. No live cloud service call or database write was performed.

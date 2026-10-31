@@ -11,7 +11,7 @@ namespace AzureGuard.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/projects/{projectId:long}/releases")]
-public class ReleasesController(AppDbContext db, ReleaseService service, JenkinsService jenkins) : ControllerBase
+public class ReleasesController(AppDbContext db, ReleaseService service, JenkinsService jenkins, ChangeImpactService changeImpact, GitDiffContextSanitizer diffSanitizer) : ControllerBase
 {
     [HttpGet] public async Task<IActionResult> List(long projectId) => Ok(await db.Releases.Where(x => x.ProjectId == projectId).OrderByDescending(x => x.CreatedAt).ToListAsync());
     [HttpGet("{id:long}")] public async Task<IActionResult> Get(long projectId, long id) { var x = await db.Releases.SingleOrDefaultAsync(x => x.Id == id && x.ProjectId == projectId); return x is null ? NotFound() : Ok(x); }
@@ -20,7 +20,38 @@ public class ReleasesController(AppDbContext db, ReleaseService service, Jenkins
     [AllowAnonymous][HttpPost("{id:long}/pipeline/webhook")] public async Task<IActionResult> PipelineWebhook(long projectId, long id, JenkinsWebhookRequest r, [FromHeader(Name = "X-AzureGuard-Webhook-Secret")] string? secret) { var expected = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<JenkinsOptions>>().Value.WebhookSecret; if (string.IsNullOrWhiteSpace(secret) || !string.Equals(secret, expected, StringComparison.Ordinal)) return Unauthorized(); if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId)) return NotFound(); return await jenkins.UpdateFromWebhookAsync(id, r) ? Ok() : NotFound("No pipeline run exists for this release."); }
     [HttpPost("{id:long}/scans")] public async Task<IActionResult> Scan(long projectId, long id, IngestScanRequest r) { if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId)) return NotFound(); try { return Ok(await service.Ingest(id, r, User.GetUserId())); } catch (ArgumentException e) { return BadRequest(e.Message); } catch (InvalidOperationException e) { return Conflict(e.Message); } }
     [HttpPost("{id:long}/reports")] public async Task<IActionResult> Report(long projectId, long id, ScanReportRequest r) { if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId)) return NotFound(); try { return Ok(await service.IngestReport(id, r, User.GetUserId())); } catch (ArgumentException e) { return BadRequest(e.Message); } catch (JsonException e) { return BadRequest($"Invalid scanner report: {e.Message}"); } }
-    [AllowAnonymous][HttpPost("{id:long}/reports/raw")] public async Task<IActionResult> RawReport(long projectId, long id, [FromQuery] string scanType, [FromQuery] string toolName, [FromQuery] string status, [FromQuery] bool finalize, [FromHeader(Name = "X-AzureGuard-Signature")] string? signature) { if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId)) return NotFound(); using var reader = new StreamReader(Request.Body); var report = await reader.ReadToEndAsync(); var expected = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<JenkinsOptions>>().Value.WebhookSecret; if (!VerifySignature(report, signature, expected)) return Unauthorized("Invalid webhook signature."); try { return Ok(await service.IngestReport(id, new ScanReportRequest(scanType, toolName, status, report), null, finalize)); } catch (ArgumentException e) { return BadRequest(e.Message); } catch (JsonException e) { return BadRequest($"Invalid scanner report: {e.Message}"); } catch (InvalidOperationException e) { return Conflict(e.Message); } }
+    [AllowAnonymous][HttpPost("{id:long}/reports/raw")] public async Task<IActionResult> RawReport(long projectId, long id, [FromQuery] string scanType, [FromQuery] string toolName, [FromQuery] string status, [FromQuery] bool finalize, [FromQuery] string? commitReference, [FromHeader(Name = "X-AzureGuard-Signature")] string? signature, CancellationToken cancellationToken)
+    {
+        if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId, cancellationToken)) return NotFound();
+        if (toolName.Equals("GIT_DIFF", StringComparison.OrdinalIgnoreCase) && Request.ContentLength is > 2_000_000) return StatusCode(StatusCodes.Status413PayloadTooLarge, "Git diff report exceeds the 2 MB limit.");
+        using var reader = new StreamReader(Request.Body);
+        var report = await reader.ReadToEndAsync(cancellationToken);
+        if (toolName.Equals("GIT_DIFF", StringComparison.OrdinalIgnoreCase) && report.Length > 2_000_000) return StatusCode(StatusCodes.Status413PayloadTooLarge, "Git diff report exceeds the 2 MB limit.");
+        var expected = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<JenkinsOptions>>().Value.WebhookSecret;
+        if (!VerifySignature(report, signature, expected)) return Unauthorized("Invalid webhook signature.");
+        try
+        {
+            var decision = await service.IngestReport(id, new ScanReportRequest(scanType, toolName, status, report), null, finalize);
+            if (decision is null) return NotFound();
+            if (toolName.Equals("GIT_DIFF", StringComparison.OrdinalIgnoreCase))
+            {
+                var context = diffSanitizer.Sanitize(report, commitReference);
+                await changeImpact.AnalyzeAndStoreAsync(id, context, cancellationToken);
+            }
+            return Ok(decision);
+        }
+        catch (ArgumentException e) { return BadRequest(e.Message); }
+        catch (JsonException e) { return BadRequest($"Invalid scanner report: {e.Message}"); }
+        catch (InvalidOperationException e) { return Conflict(e.Message); }
+    }
+
+    [HttpGet("{id:long}/change-impact")]
+    public async Task<IActionResult> ChangeImpact(long projectId, long id, CancellationToken cancellationToken)
+    {
+        if (!await db.Releases.AnyAsync(x => x.Id == id && x.ProjectId == projectId, cancellationToken)) return NotFound();
+        var analysis = await changeImpact.GetLatestAsync(id, cancellationToken);
+        return Ok(analysis is null ? null : ChangeImpactService.ToResponse(analysis));
+    }
     private static bool VerifySignature(string body, string? signature, string secret) { if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(signature)) return false; var provided = signature.StartsWith("sha256=", StringComparison.OrdinalIgnoreCase) ? signature[7..] : signature; if (provided.Length != 64) return false; try { var expected = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(body)); var actual = Convert.FromHexString(provided); return CryptographicOperations.FixedTimeEquals(expected, actual); } catch (FormatException) { return false; } }
     [Authorize(Roles = "Reviewer,Admin")][HttpPost("{id:long}/approve")] public async Task<IActionResult> Approve(long projectId, long id) => await Decide(projectId, id, Statuses.Approved, "Release approved by reviewer.");
     [Authorize(Roles = "Reviewer,Admin")][HttpPost("{id:long}/reject")] public async Task<IActionResult> Reject(long projectId, long id) => await Decide(projectId, id, Statuses.Blocked, "Release rejected by reviewer.");

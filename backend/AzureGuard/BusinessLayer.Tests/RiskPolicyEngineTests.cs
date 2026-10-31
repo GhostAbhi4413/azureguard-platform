@@ -41,4 +41,15 @@ public class RiskPolicyEngineTests
         var result = _engine.Evaluate([new ScanResult { Status = "FAILED" }]);
         Assert.Equal(Statuses.ManualReview, result.decision);
     }
+
+    [Fact]
+    public void SensitiveGitDiffRequiresReviewEvenWithOnlyOneHighFinding()
+    {
+        var result = _engine.Evaluate(
+            [new ScanResult { ScanType = "GIT_DIFF", HighCount = 1 }],
+            findings: [new ScanFinding { ScanType = "GIT_DIFF", Severity = "HIGH", RuleId = "GIT_DIFF_SENSITIVE_PATH" }]);
+
+        Assert.Equal(Statuses.ManualReview, result.decision);
+        Assert.Contains("Git diff", result.reason);
+    }
 }

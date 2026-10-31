@@ -8,8 +8,13 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    env:
+      SONAR_CONFIGURED: ${{ secrets.SONAR_HOST_URL != '' && secrets.SONAR_TOKEN != '' && secrets.SONAR_PROJECT_KEY != '' }}
+      AZUREGUARD_PR_REPORT_CONFIGURED: ${{ secrets.AZUREGUARD_API_URL != '' && secrets.AZUREGUARD_PROJECT_ID != '' && secrets.AZUREGUARD_RELEASE_ID != '' && secrets.AZUREGUARD_WEBHOOK_SECRET != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - uses: actions/setup-node@v4
@@ -23,6 +28,36 @@ jobs:
         working-directory: frontend
       - run: npm ci && npm run build
         working-directory: frontend-angular
+      - name: Submit pull request diff for AI change-impact analysis
+        if: ${{ github.event_name == 'pull_request' && env.AZUREGUARD_PR_REPORT_CONFIGURED == 'true' }}
+        env:
+          AZUREGUARD_API_URL: ${{ secrets.AZUREGUARD_API_URL }}
+          AZUREGUARD_PROJECT_ID: ${{ secrets.AZUREGUARD_PROJECT_ID }}
+          AZUREGUARD_RELEASE_ID: ${{ secrets.AZUREGUARD_RELEASE_ID }}
+          AZUREGUARD_WEBHOOK_SECRET: ${{ secrets.AZUREGUARD_WEBHOOK_SECRET }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          diff_file="$RUNNER_TEMP/azureguard-pr.diff"
+          trap 'rm -f "$diff_file"' EXIT
+          git diff --no-ext-diff --unified=0 "$PR_BASE_SHA...$PR_HEAD_SHA" > "$diff_file"
+          signature="$(python -c 'import hashlib,hmac,os,sys; print("sha256=" + hmac.new(os.environ["AZUREGUARD_WEBHOOK_SECRET"].encode(), open(sys.argv[1], "rb").read(), hashlib.sha256).hexdigest())' "$diff_file")"
+          curl --fail --silent --show-error -X POST \
+            "$AZUREGUARD_API_URL/projects/$AZUREGUARD_PROJECT_ID/releases/$AZUREGUARD_RELEASE_ID/reports/raw?scanType=GIT_DIFF&toolName=GIT_DIFF&status=PASSED&finalize=false&commitReference=$PR_HEAD_SHA" \
+            -H "Content-Type: text/plain" -H "X-AzureGuard-Signature: $signature" --data-binary "@$diff_file"
+      - name: SonarQube analysis (optional)
+        if: ${{ env.SONAR_CONFIGURED == 'true' }}
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+        with:
+          args: >-
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=backend/AzureGuard,frontend-angular/src,frontend/src
       - run: python -m pip install -r requirements.txt && python -m pytest tests -q
         working-directory: ai-service
       - uses: gitleaks/gitleaks-action@v2

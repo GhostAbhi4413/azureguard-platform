@@ -26,6 +26,13 @@ pipeline {
         call npm run build
         if errorlevel 1 exit /b 1
       )
+      if exist frontend-angular/package.json (
+        cd frontend-angular
+        call npm ci
+        if errorlevel 1 exit /b 1
+        call npm run build
+        if errorlevel 1 exit /b 1
+      )
     ''' } }
     stage('Test') { steps { bat '''
       if exist backend/AzureGuard/AzureGuard.sln dotnet test backend/AzureGuard/AzureGuard.sln --configuration Release --no-restore --no-build -m:1
@@ -50,6 +57,17 @@ pipeline {
               exit /b 0
             )
             if not defined AZUREGUARD_API_URL set AZUREGUARD_API_URL=http://localhost:5006/api
+            git rev-parse HEAD^ >nul 2>nul
+            if errorlevel 1 (
+              type nul > git-diff-report.patch
+            ) else (
+              git diff --no-ext-diff --unified=0 HEAD^ HEAD > git-diff-report.patch
+              if errorlevel 1 exit /b 1
+            )
+            for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('git-diff-report.patch'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "GIT_DIFF_SIGNATURE=%%S"
+            curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GIT_DIFF&toolName=GIT_DIFF&status=PASSED&finalize=false&commitReference=%GIT_COMMIT%" -H "Content-Type: text/plain" -H "X-AzureGuard-Signature: %GIT_DIFF_SIGNATURE%" --data-binary "@git-diff-report.patch"
+            if errorlevel 1 exit /b 1
+            del /q git-diff-report.patch
             for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('gitleaks-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "GITLEAKS_SIGNATURE=%%S"
             curl.exe --fail-with-body -sS -X POST "%AZUREGUARD_API_URL%/projects/%PROJECT_ID%/releases/%RELEASE_ID%/reports/raw?scanType=GITLEAKS&toolName=GITLEAKS&status=PASSED&finalize=false" -H "Content-Type: application/json" -H "X-AzureGuard-Signature: %GITLEAKS_SIGNATURE%" --data-binary "@gitleaks-report.json"
             for /f "delims=" %%S in ('powershell -NoProfile -Command "$secret=$env:AZUREGUARD_WEBHOOK_SECRET; $body=[IO.File]::ReadAllBytes('trivy-report.json'); $h=[Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes($secret)); 'sha256=' + ([BitConverter]::ToString($h.ComputeHash($body)).Replace('-','').ToLowerInvariant())"') do set "TRIVY_SIGNATURE=%%S"
@@ -62,5 +80,10 @@ pipeline {
       }
     }
   }
-  post { always { echo "AzureGuard release ${params.RELEASE_VERSION} completed with ${currentBuild.currentResult}" } }
+  post {
+    always {
+      bat 'if exist git-diff-report.patch del /q git-diff-report.patch'
+      echo "AzureGuard release ${params.RELEASE_VERSION} completed with ${currentBuild.currentResult}"
+    }
+  }
 }
