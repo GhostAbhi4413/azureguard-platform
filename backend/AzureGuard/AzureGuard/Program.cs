@@ -11,6 +11,12 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.AllowAnyHeader().Al
 builder.Services.AddHttpClient<RepositoryAnalyzer>();
 builder.Services.Configure<JenkinsOptions>(builder.Configuration.GetSection("Jenkins"));
 builder.Services.AddHttpClient<JenkinsService>();
+builder.Services.AddHttpClient("ai-remediation", client =>
+{
+    var baseUrl = builder.Configuration["AI:BaseUrl"] ?? "http://localhost:8000";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(25);
+});
 
 // Add services to the container.
 

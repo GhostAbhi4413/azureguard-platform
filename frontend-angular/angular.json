@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "azureguard-angular": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "ag",
+      "architect": {
+        "build": { "builder": "@angular/build:application", "options": { "outputPath": "dist/azureguard-angular", "index": "src/index.html", "browser": "src/main.ts", "tsConfig": "tsconfig.app.json", "assets": [], "styles": ["src/styles.css"] }, "configurations": { "production": { "optimization": true, "outputHashing": "all" } } },
+        "serve": { "builder": "@angular/build:dev-server", "configurations": { "development": { "buildTarget": "azureguard-angular:build" }, "production": { "buildTarget": "azureguard-angular:build:production" } }, "defaultConfiguration": "development" }
+      }
+    }
+  }
+}

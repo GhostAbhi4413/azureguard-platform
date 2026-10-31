@@ -1,0 +1,36 @@
+name: AzureGuard security checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: dotnet restore backend/AzureGuard/AzureGuard.sln --configfile backend/NuGet.Config
+      - run: dotnet build backend/AzureGuard/AzureGuard.sln --no-restore --configuration Release
+      - run: dotnet test backend/AzureGuard/AzureGuard.sln --no-build --configuration Release
+      - run: npm ci && npm run build
+        working-directory: frontend
+      - run: npm install && npm run build
+        working-directory: frontend-angular
+      - run: python -m pip install -r ai-service/requirements.txt && python -m pytest ai-service/tests
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+# Configure this workflow as a required status check in repository branch protection.
