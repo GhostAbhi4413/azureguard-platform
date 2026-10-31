@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">AzureGuard Angular screen flow</title>
+  <desc id="desc">Illustration of the implemented Angular login, release review, security findings, and AI remediation views. Values are illustrative, not live system data.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1220"/><stop offset="1" stop-color="#111e32"/></linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#74dcc8"/><stop offset="1" stop-color="#45bea9"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#020611" flood-opacity=".35"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#70d6c4"/></marker>
+    <style>
+      text{font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#9cacc2}.white{fill:#edf3fb}.mint{fill:#70d6c4}.tiny{font-size:13px}.small{font-size:15px}.body{font-size:17px}.heading{font-size:23px;font-weight:700}.panel{fill:#131f32;stroke:#293b55;stroke-width:1.5}.input{fill:#0c1525;stroke:#40536e;stroke-width:1.2}.line{stroke:#70d6c4;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1440" height="900" rx="28" fill="url(#bg)"/>
+  <text x="72" y="72" class="mint tiny" letter-spacing="3">AZUREGUARD · ANGULAR + TYPESCRIPT</text>
+  <text x="72" y="126" class="white" font-size="38" font-weight="750">From sign-in to actionable release guidance</text>
+  <text x="72" y="160" class="muted body">A visual walkthrough of the current Angular UI and its .NET API calls. Finding and score labels below are illustrative.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="222" width="370" height="574" rx="22" class="panel"/>
+    <rect x="535" y="222" width="370" height="574" rx="22" class="panel"/>
+    <rect x="1006" y="222" width="370" height="574" rx="22" class="panel"/>
+  </g>
+  <circle cx="100" cy="263" r="20" fill="url(#mint)"/><text x="100" y="270" text-anchor="middle" fill="#09211e" font-size="17" font-weight="800">1</text>
+  <text x="132" y="271" class="white heading">Sign in</text>
+  <text x="90" y="310" class="muted small">POST /api/auth/login</text>
+  <text x="90" y="364" class="white small">Email</text><rect x="90" y="378" width="318" height="48" rx="9" class="input"/><text x="106" y="408" class="muted small">your account email</text>
+  <text x="90" y="462" class="white small">Password</text><rect x="90" y="476" width="318" height="48" rx="9" class="input"/><text x="106" y="506" class="muted small">••••••••••</text>
+  <rect x="90" y="548" width="318" height="50" rx="10" fill="url(#mint)"/><text x="249" y="580" text-anchor="middle" fill="#09211e" class="small" font-weight="700">Sign in</text>
+  <rect x="90" y="636" width="318" height="108" rx="12" fill="#102b31" stroke="#276158"/><text x="110" y="669" class="mint small" font-weight="700">On success</text><text x="110" y="698" class="white small">JWT is kept in session storage</text><text x="110" y="723" class="muted tiny">Subsequent API calls use Bearer auth</text>
+
+  <circle cx="571" cy="263" r="20" fill="url(#mint)"/><text x="571" y="270" text-anchor="middle" fill="#09211e" font-size="17" font-weight="800">2</text>
+  <text x="603" y="271" class="white heading">Review a release</text>
+  <text x="561" y="310" class="muted small">GET findings · POST risk evaluation</text>
+  <text x="561" y="362" class="white small">Release ID</text><rect x="561" y="376" width="180" height="44" rx="8" class="input"/><text x="579" y="404" class="white small">123</text><rect x="753" y="376" width="124" height="44" rx="8" fill="url(#mint)"/><text x="815" y="404" text-anchor="middle" fill="#09211e" class="tiny" font-weight="700">Load release</text>
+  <rect x="561" y="444" width="318" height="106" rx="13" fill="#2a2520" stroke="#73532d"/><text x="582" y="477" class="muted tiny" letter-spacing="1">POLICY DECISION · EXAMPLE</text><text x="582" y="514" fill="#ffd18c" font-size="23" font-weight="700">REVIEW_REQUIRED</text><text x="582" y="537" class="muted tiny">Risk score is evaluated by .NET rules</text>
+  <text x="561" y="594" class="white small" font-weight="700">Security findings</text>
+  <rect x="561" y="610" width="318" height="58" rx="10" fill="#101a2a" stroke="#293b55"/><circle cx="582" cy="639" r="6" fill="#ffbb68"/><text x="600" y="635" class="white tiny" font-weight="700">HIGH · dependency advisory</text><text x="600" y="654" class="muted tiny">package-lock.json</text>
+  <rect x="561" y="680" width="318" height="58" rx="10" fill="#101a2a" stroke="#293b55"/><circle cx="582" cy="709" r="6" fill="#e89b77"/><text x="600" y="705" class="white tiny" font-weight="700">MEDIUM · static analysis issue</text><text x="600" y="724" class="muted tiny">src/config.ts</text>
+
+  <circle cx="1042" cy="263" r="20" fill="url(#mint)"/><text x="1042" y="270" text-anchor="middle" fill="#09211e" font-size="17" font-weight="800">3</text>
+  <text x="1074" y="271" class="white heading">Request remediation</text>
+  <text x="1032" y="310" class="muted small">Angular → .NET → Python → Azure OpenAI</text>
+  <rect x="1032" y="348" width="318" height="66" rx="11" fill="#102b31" stroke="#276158"/><text x="1052" y="376" class="mint tiny" font-weight="700">AI EXPLANATION</text><text x="1052" y="398" class="white tiny">Why this finding matters</text>
+  <rect x="1032" y="428" width="318" height="66" rx="11" fill="#101a2a" stroke="#293b55"/><text x="1052" y="456" class="mint tiny" font-weight="700">POTENTIAL IMPACT</text><text x="1052" y="478" class="white tiny">What an attacker may gain</text>
+  <rect x="1032" y="508" width="318" height="90" rx="11" fill="#101a2a" stroke="#293b55"/><text x="1052" y="537" class="mint tiny" font-weight="700">SUGGESTED REMEDIATION</text><text x="1052" y="561" class="white tiny">A concrete fix for the finding</text><text x="1052" y="582" class="muted tiny">Returned as structured JSON</text>
+  <rect x="1032" y="612" width="318" height="90" rx="11" fill="#101a2a" stroke="#293b55"/><text x="1052" y="641" class="mint tiny" font-weight="700">PREVENTION</text><text x="1052" y="666" class="white tiny">Tests, review rules, safe config</text><text x="1052" y="686" class="muted tiny">Advisory output; policy stays deterministic</text>
+  <text x="1032" y="744" class="muted tiny">No live AI result is shown in this illustration.</text>
+
+  <path d="M446 510H516" class="line"/><path d="M917 510H987" class="line"/>
+  <text x="720" y="842" text-anchor="middle" class="muted tiny">Illustration of implemented screen states and endpoint flow — not a live application screenshot or live security data.</text>
+</svg>

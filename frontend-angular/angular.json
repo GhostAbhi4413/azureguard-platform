@@ -13,5 +13,8 @@
         "serve": { "builder": "@angular/build:dev-server", "configurations": { "development": { "buildTarget": "azureguard-angular:build" }, "production": { "buildTarget": "azureguard-angular:build:production" } }, "defaultConfiguration": "development" }
       }
     }
+  },
+  "cli": {
+    "analytics": false
   }
 }
